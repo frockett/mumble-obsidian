@@ -1,5 +1,7 @@
 # vscode
-.vscode 
+.vscode
+
+.env
 
 # Intellij
 *.iml

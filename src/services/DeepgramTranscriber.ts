@@ -23,7 +23,6 @@ export class DeepgramTranscriber {
 			language: "en",
 			smart_format: true,
 			interim_results: true, // Get partial results while speaking
-			utterance_end_ms: 3000, // 1 second of silence ends utterance
 		});
 
 		// 3. Set up event handlers for transcript, error, and close

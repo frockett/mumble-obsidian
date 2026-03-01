@@ -5,18 +5,19 @@
 
 	interface Props {
 		apiKey: string;
+		llmApiKey: string | null;
 		app: App;
 	}
 
-	let { apiKey, app }: Props = $props();
+	let { apiKey, llmApiKey, app }: Props = $props();
 
 	let noteWriter: NoteWriter;
 
 	let recordingState: RecordingState = $state("idle");
 	let elapsed = $state("00:00");
 	let manager: RecordingManager | null = null;
-	let transcriptLines: string[] = $state([]);
-	// let elapsed: string = "00:00";
+	let currentTranscript: string = $state("");
+	let timer: number | null = null;
 
 	// Format milliseconds as MM:SS
 	function formatTime(ms: number): string {
@@ -36,27 +37,36 @@
 
 	function handleTranscript(text: string, isFinal: boolean) {
 		if (isFinal) {
-			transcriptLines = [...transcriptLines, text];
+			currentTranscript = currentTranscript + " " + text;
 		}
 	}
 
 	async function startRecording() {
 		noteWriter = new NoteWriter(app);
-		manager = new RecordingManager(apiKey);
-
-		// Update timer every second
-		const timer = setInterval(() => {
-			if (manager) {
-				elapsed = formatTime(manager.getElapsedTime());
-			}
-		}, 100);
+		if (llmApiKey != null) {
+			manager = new RecordingManager(apiKey, llmApiKey);
+		} else {
+			manager = new RecordingManager(apiKey);
+		}
 
 		try {
 			await manager.start({
 				onStateChange: (newState) => {
 					recordingState = newState;
-					if (newState === "idle") {
-						clearInterval(timer);
+
+					if (newState === "recording") {
+						// Start timer only when actually recording
+						timer = window.setInterval(() => {
+							if (manager) {
+								elapsed = formatTime(manager.getElapsedTime());
+							}
+						}, 100);
+					} else {
+						// Stop timer when not recording
+						if (timer) {
+							clearInterval(timer);
+							timer = null;
+						}
 					}
 				},
 				onError: (error) => {
@@ -67,46 +77,40 @@
 				},
 			});
 		} catch (error) {
-			clearInterval(timer);
 			console.error("Failed to start recording:", error);
 		}
 	}
 
 	async function stopRecording() {
-		const transcript = manager?.getTranscript();
+		await manager?.stop();
+		let transcript;
+		if (llmApiKey != null) {
+			transcript = await manager?.getFormattedTranscript();
+		} else {
+			transcript = manager?.getTranscript();
+		}
+
 		if (transcript) {
 			await noteWriter?.insertAtCursor(transcript);
 		}
-		await manager?.stop();
 	}
 </script>
 
 <div class="recording-control">
-	<div class="status">
-		{#if recordingState === "idle"}
-			<span class="status-idle">Ready</span>
-		{:else if recordingState === "recording"}
-			<span class="status-recording">🔴 Recording</span>
-			<span class="elapsed">{elapsed}</span>
-		{:else}
-			<span class="status-error">Error</span>
-		{/if}
-	</div>
-
 	<button
 		class={recordingState === "recording" ? "btn-stop" : "btn-start"}
 		onclick={toggleRecording}
-		disabled={recordingState === "error"}
+		disabled={recordingState === "error" || recordingState === "processing"}
 	>
 		{#if recordingState === "idle"}
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
-				width="16"
-				height="16"
+				width="24"
+				height="24"
 				viewBox="0 0 24 24"
 				fill="none"
 				stroke="currentColor"
-				stroke-width="2"
+				stroke-width="1.5"
 				stroke-linecap="round"
 				stroke-linejoin="round"
 				class="lucide lucide-mic-icon lucide-mic"
@@ -114,16 +118,46 @@
 					d="M19 10v2a7 7 0 0 1-14 0v-2"
 				/><rect x="9" y="2" width="6" height="13" rx="3" /></svg
 			>
-			Start Recording
-		{:else}
+			Start
+		{:else if recordingState == "connecting"}
 			<svg
 				xmlns="http://www.w3.org/2000/svg"
-				width="16"
-				height="16"
+				width="24"
+				height="24"
 				viewBox="0 0 24 24"
 				fill="none"
 				stroke="currentColor"
-				stroke-width="2"
+				stroke-width="1.5"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				class="lucide lucide-loader-circle-icon lucide-loader-circle animate-spin"
+				><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg
+			>
+			Connecting
+		{:else if recordingState == "processing"}
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				width="24"
+				height="24"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.5"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				class="lucide lucide-loader-circle-icon lucide-loader-circle animate-spin"
+				><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg
+			>
+			Processing
+		{:else}
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				width="24"
+				height="24"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.5"
 				stroke-linecap="round"
 				stroke-linejoin="round"
 				class="lucide lucide-mic-off-icon lucide-mic-off"
@@ -135,14 +169,27 @@
 					d="M9 9v3a3 3 0 0 0 5.12 2.12"
 				/></svg
 			>
-			Stop Recording
+			Stop
 		{/if}
 	</button>
+	<div class="status">
+		{#if recordingState === "idle"}
+			<span class="status-idle">Ready</span>
+		{:else if recordingState === "connecting"}
+			<span class="status-connecting">Connecting...</span>
+		{:else if recordingState === "recording"}
+			<span class="status-recording">🔴 </span>
+			<span class="elapsed">{elapsed}</span>
+		{:else if recordingState === "processing"}
+			<span class="status-connecting">Processing...</span>
+		{:else}
+			<span class="status-error">Error</span>
+		{/if}
+	</div>
 	<div class="transcript-box">
-		{#if transcriptLines.length > 0}
-			{#each transcriptLines as line}
-				<div class="transcript-line">{line}</div>
-			{/each}{:else}
+		{#if currentTranscript.length > 0}
+			<div class="transcript-line">{currentTranscript}</div>
+		{:else}
 			<div class="transcript-line-placeholder">
 				Your transcript will appear here...
 			</div>
@@ -154,17 +201,21 @@
 	.recording-control {
 		display: flex;
 		flex-direction: column;
-		gap: 16px;
+		justify-content: center;
+		align-items: center;
+		gap: 1.5rem;
 		padding: 16px;
+		height: 100%;
 	}
 
 	.transcript-box {
-		height: 500px;
+		height: 12rem;
 		overflow-y: auto;
 		border: 1px solid var(--status-bar-border-color);
 		background-color: var(--background-primary-alt);
 		border-radius: 8px;
 		padding: 16px;
+		width: 100%;
 	}
 
 	.transcript-line-placeholder {
@@ -175,6 +226,7 @@
 	.status {
 		display: flex;
 		align-items: center;
+		justify-content: center;
 		gap: 12px;
 		font-size: 14px;
 	}
@@ -192,22 +244,32 @@
 		color: var(--color-orange);
 	}
 
+	.status-connecting {
+		color: var(--text-accent);
+		font-weight: 600;
+	}
+
 	.elapsed {
 		font-family: monospace;
 		font-size: 16px;
 	}
 
 	button {
-		padding: 12px 16px;
-		border-radius: 8px;
+		padding: 4px;
+		border-radius: 50%;
 		border: none;
 		font-size: 14px;
 		font-weight: 600;
 		cursor: pointer;
 		display: flex;
+		flex-direction: column;
 		align-items: center;
-		gap: 8px;
+		gap: 12px;
 		transition: all 0.2s;
+		height: 8rem;
+		width: 8rem;
+		margin: 0 auto;
+		position: relative;
 	}
 
 	.btn-start {
@@ -223,6 +285,32 @@
 		background: var(--color-red);
 		color: white;
 	}
+
+	@keyframes spin {
+		from {
+			transform: rotate(0deg);
+		}
+		to {
+			transform: rotate(360deg);
+		}
+	}
+
+	.animate-spin {
+		animation: spin 1s ease-in-out infinite;
+	}
+
+	.btn-stop::before {
+		content: "";
+		position: absolute;
+		inset: -6px;
+		border-radius: 50%;
+		border-top: 2px solid var(--color-orange);
+		animation: spin 1.5s ease-in-out infinite;
+	}
+
+	/*.animate-spin {
+		animation: spin 1s linear infinite;
+	}*/
 
 	.btn-stop:hover {
 		background: rgba(var(--color-red-rgb), 0.8);

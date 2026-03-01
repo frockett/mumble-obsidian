@@ -205,6 +205,11 @@ export class RecordingView extends ItemView {
 	async onOpen() {
 		const apiKey = this.plugin.settings.deepgramApiKey;
 
+		const shouldPostProcess = this.plugin.settings.enableLLMPostProcessing;
+		const llmApiKey = shouldPostProcess
+			? this.plugin.settings.openRouterApiKey
+			: null;
+
 		if (!apiKey) {
 			this.contentEl.createEl("p", {
 				text: "Please set Deepgram API key in settings",
@@ -216,6 +221,7 @@ export class RecordingView extends ItemView {
 			target: this.contentEl,
 			props: {
 				apiKey,
+				llmApiKey,
 				app: this.plugin.app,
 			},
 		});

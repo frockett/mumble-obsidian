@@ -189,9 +189,30 @@
 	<div class="transcript-box">
 		{#if currentTranscript.length > 0}
 			<div class="transcript-line">{currentTranscript}</div>
+			<button
+				class="clear-transcript-btn"
+				aria-label="Clear transcript preview"
+				onclick={() => {
+					currentTranscript = "";
+				}}
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					width="20"
+					height="20"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.5"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					class="lucide lucide-x-icon lucide-x"
+					><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg
+				>
+			</button>
 		{:else}
 			<div class="transcript-line-placeholder">
-				Your transcript will appear here...
+				Transcript preview will appear here...
 			</div>
 		{/if}
 	</div>
@@ -216,6 +237,18 @@
 		border-radius: 8px;
 		padding: 16px;
 		width: 100%;
+		position: relative;
+	}
+
+	.clear-transcript-btn {
+		position: absolute;
+		top: 2px;
+		right: 2px;
+		cursor: pointer;
+		background-color: transparent;
+		border: none;
+		padding: 0;
+		background: none;
 	}
 
 	.transcript-line-placeholder {
@@ -254,7 +287,7 @@
 		font-size: 16px;
 	}
 
-	button {
+	button:not(.clear-transcript-btn) {
 		padding: 4px;
 		border-radius: 50%;
 		border: none;

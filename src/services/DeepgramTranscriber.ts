@@ -26,11 +26,7 @@ export class DeepgramTranscriber {
 			utterance_end_ms: 1000, // 1 second of silence ends utterance
 		});
 
-		// 3. Set up event handlers
-		this.connection.on(LiveTranscriptionEvents.Open, () => {
-			console.log("DeepgramTranscriber: Connection opened");
-		});
-
+		// 3. Set up event handlers for transcript, error, and close
 		this.connection.on(LiveTranscriptionEvents.Transcript, (data: any) => {
 			const transcript = data.channel?.alternatives?.[0]?.transcript;
 			const isFinal = data.is_final;
@@ -49,6 +45,17 @@ export class DeepgramTranscriber {
 
 		this.connection.on(LiveTranscriptionEvents.Close, () => {
 			console.log("DeepgramTranscriber: Connection closed");
+		});
+
+		// 4. Wait for connection to open
+		await new Promise<void>((resolve, reject) => {
+			this.connection.on(LiveTranscriptionEvents.Open, () => {
+				console.log("DeepgramTranscriber: Connection opened");
+				resolve();
+			});
+			this.connection.on(LiveTranscriptionEvents.Error, (error: any) => {
+				reject(error);
+			});
 		});
 	}
 

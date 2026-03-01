@@ -11,20 +11,15 @@
 		"noImplicitReturns": true,
 		"moduleResolution": "node",
 		"importHelpers": true,
+		"verbatimModuleSyntax": true,
 		"noUncheckedIndexedAccess": true,
 		"isolatedModules": true,
 		"strictNullChecks": true,
 		"strictBindCallApply": true,
 		"allowSyntheticDefaultImports": true,
 		"useUnknownInCatchVariables": true,
-		"lib": [
-			"DOM",
-			"ES5",
-			"ES6",
-			"ES7"
-		]
+		"lib": ["DOM", "ES5", "ES6", "ES7"],
+		"skipLibCheck": true,
 	},
-	"include": [
-		"src/**/*.ts"
-	]
+	"include": ["src/**/*.ts", "src/**/*.svelte"],
 }

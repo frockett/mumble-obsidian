@@ -10,6 +10,7 @@ export interface RecordingCallbacks {
 }
 
 export class RecordingManager {
+	private transcriptBuffer: string[] = [];
 	private state: RecordingState = "idle";
 	private recorder: AudioRecorder | null = null;
 	private transcriber: DeepgramTranscriber | null = null;
@@ -45,6 +46,9 @@ export class RecordingManager {
 			// Start transcriber first (waits for connection)
 			await this.transcriber.start((text, isFinal) => {
 				this.callbacks.onTranscript?.(text, isFinal);
+				if (isFinal) {
+					this.transcriptBuffer.push(text);
+				}
 			});
 
 			// Start recording and stream to transcriber
@@ -57,6 +61,10 @@ export class RecordingManager {
 			this.callbacks.onStateChange?.("error");
 			throw error;
 		}
+	}
+
+	getTranscript(): string {
+		return this.transcriptBuffer.join(" ");
 	}
 
 	async stop(): Promise<void> {

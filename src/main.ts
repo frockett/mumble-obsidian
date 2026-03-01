@@ -216,6 +216,7 @@ export class RecordingView extends ItemView {
 			target: this.contentEl,
 			props: {
 				apiKey,
+				app: this.plugin.app,
 			},
 		});
 	}

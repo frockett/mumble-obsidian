@@ -1,15 +1,18 @@
 <script lang="ts">
 	import { RecordingManager } from "./services/RecordingManager";
-	import type { RecordingState } from "./services/RecordingManager";
+	import type {
+		RecordingState,
+		FormattedTranscriptResponse,
+	} from "./services/RecordingManager";
 	import { NoteWriter } from "./services/NoteWriter";
+	import type { MyPluginSettings } from "./settings";
 
 	interface Props {
-		apiKey: string;
-		llmApiKey: string | null;
 		app: App;
+		settings: MyPluginSettings;
 	}
 
-	let { apiKey, llmApiKey, app }: Props = $props();
+	let { app, settings }: Props = $props();
 
 	let noteWriter: NoteWriter;
 
@@ -43,10 +46,14 @@
 
 	async function startRecording() {
 		noteWriter = new NoteWriter(app);
-		if (llmApiKey != null) {
-			manager = new RecordingManager(apiKey, llmApiKey);
+		if (settings.enableLLMPostProcessing) {
+			manager = new RecordingManager(
+				settings.deepgramApiKey,
+				app,
+				settings.openRouterApiKey,
+			);
 		} else {
-			manager = new RecordingManager(apiKey);
+			manager = new RecordingManager(settings.deepgramApiKey, app);
 		}
 
 		try {
@@ -84,14 +91,29 @@
 	async function stopRecording() {
 		await manager?.stop();
 		let transcript;
-		if (llmApiKey != null) {
-			transcript = await manager?.getFormattedTranscript();
+		let tags;
+		if (settings.enableLLMPostProcessing) {
+			const formattedResponse: FormattedTranscriptResponse =
+				await manager?.getFormattedTranscript(
+					settings.includeKeywordLinks,
+				);
+
+			transcript = formattedResponse.transcript;
+			tags = formattedResponse.tags;
+
+			console.log("TRANSCRIPT TO WRITE: ", transcript);
+			console.log("TAGS: ", tags);
 		} else {
 			transcript = manager?.getTranscript();
 		}
 
 		if (transcript) {
+			console.log("WE HAVE TRANSCRIPT");
 			await noteWriter?.insertAtCursor(transcript);
+		}
+
+		if (tags) {
+			await noteWriter?.addTagsToNote(tags);
 		}
 	}
 </script>
@@ -186,35 +208,37 @@
 			<span class="status-error">Error</span>
 		{/if}
 	</div>
-	<div class="transcript-box">
-		{#if currentTranscript.length > 0}
-			<div class="transcript-line">{currentTranscript}</div>
-			<button
-				class="clear-transcript-btn"
-				aria-label="Clear transcript preview"
-				onclick={() => {
-					currentTranscript = "";
-				}}
+	<div class="preview-container">
+		<button
+			class="clear-transcript-btn"
+			aria-label="Clear transcript preview"
+			onclick={() => {
+				currentTranscript = "";
+			}}
+		>
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				width="20"
+				height="20"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.5"
+				stroke-linecap="round"
+				stroke-linejoin="round"
+				class="lucide lucide-x-icon lucide-x"
+				><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg
 			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					width="20"
-					height="20"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="1.5"
-					stroke-linecap="round"
-					stroke-linejoin="round"
-					class="lucide lucide-x-icon lucide-x"
-					><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg
-				>
-			</button>
-		{:else}
-			<div class="transcript-line-placeholder">
-				Transcript preview will appear here...
-			</div>
-		{/if}
+		</button>
+		<div class="transcript-box">
+			{#if currentTranscript.length > 0}
+				<div class="transcript-line">{currentTranscript}</div>
+			{:else}
+				<div class="transcript-line-placeholder">
+					Transcript preview will appear here...
+				</div>
+			{/if}
+		</div>
 	</div>
 </div>
 
@@ -237,18 +261,24 @@
 		border-radius: 8px;
 		padding: 16px;
 		width: 100%;
+	}
+
+	.preview-container {
 		position: relative;
 	}
 
-	.clear-transcript-btn {
+	button.clear-transcript-btn {
 		position: absolute;
 		top: 2px;
 		right: 2px;
 		cursor: pointer;
 		background-color: transparent;
+		border-color: transparent;
+		outline: none;
 		border: none;
 		padding: 0;
 		background: none;
+		margin: 0;
 	}
 
 	.transcript-line-placeholder {

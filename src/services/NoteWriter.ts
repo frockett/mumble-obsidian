@@ -34,12 +34,50 @@ export class NoteWriter {
 		editor.setCursor(newCursor);
 	}
 
+	async addTagsToNote(newTags: string[]): Promise<void> {
+		const activeFile = this.app.workspace.getActiveFile();
+
+		if (!activeFile) {
+			return;
+		}
+
+		await this.app.fileManager.processFrontMatter(
+			activeFile,
+			(frontmatter) => {
+				const existingTags: string[] = frontmatter.tags || [];
+
+				console.log("EXISTING TAGS:", existingTags);
+
+				const tagsToAdd = newTags.filter(
+					(t) => !existingTags.includes(t),
+				);
+
+				console.log("TAGS TO ADD:", tagsToAdd);
+
+				if (tagsToAdd.length > 0) {
+					frontmatter.tags = [...existingTags, ...tagsToAdd];
+				}
+
+				return frontmatter;
+			},
+		);
+	}
+
 	async append(text: string): Promise<void> {
 		const activeFile = this.app.workspace.getActiveFile();
 		const editor = this.getEditor();
 
 		if (!activeFile || !editor) {
 			throw new Error("Please open a note first");
+		}
+
+		const content = editor.getValue();
+		const isEmpty = content.trim().length === 0;
+
+		if (isEmpty) {
+			// File is empty, insert at position 0
+			editor.replaceRange(text, { line: 0, ch: 0 });
+			return;
 		}
 
 		// Get end of document

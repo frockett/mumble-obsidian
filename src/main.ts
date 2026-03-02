@@ -220,9 +220,8 @@ export class RecordingView extends ItemView {
 		this.component = mount(RecordingControl, {
 			target: this.contentEl,
 			props: {
-				apiKey,
-				llmApiKey,
 				app: this.plugin.app,
+				settings: this.plugin.settings,
 			},
 		});
 	}

@@ -6,3 +6,11 @@ available in the app when your plugin is enabled.
 If your plugin does not need CSS, delete this file.
 
 */
+
+.setting-item.mod-disabled {
+	opacity: 0.4;
+	filter: grayscale(100%);
+	transition:
+		opacity 0.3s ease,
+		filter 0.3s ease;
+}

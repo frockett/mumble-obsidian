@@ -107,6 +107,12 @@
 			transcript = manager?.getTranscript();
 		}
 
+		// We need to write the transcript BEFORE we write the tags.
+		// It's not 100% clear why, but it seems there is some kind of RACE condition
+		// created by the way that processFrontMatter() in addTagsToNote() behaves
+		// WRT reading the file from disk and then reloading it after changes.
+		// Writing Tags first and then writing the transcript deletes the tags.
+
 		if (transcript) {
 			console.log("WE HAVE TRANSCRIPT");
 			await noteWriter?.insertAtCursor(transcript);

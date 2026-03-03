@@ -9,6 +9,9 @@ export class NoteWriter {
 		}
 
 		const activeFile = this.app.workspace.getActiveFile();
+
+		console.log("Active File: ", activeFile?.basename);
+
 		const editor = this.getEditor();
 
 		if (!activeFile || !editor) {
@@ -20,6 +23,10 @@ export class NoteWriter {
 
 		if (cursor.line === 0 && cursor.ch === 0) {
 			await this.append(text);
+
+			// We must explicity save the editor buffer to the file since adding the tags modifies the file too and creates a RACE
+			// condition.
+			await this.app.vault.modify(activeFile, editor.getValue());
 			return;
 		}
 
@@ -32,6 +39,9 @@ export class NoteWriter {
 			ch: cursor.ch + text.length,
 		};
 		editor.setCursor(newCursor);
+
+		// Same reason as above, make sure we always save the active file!
+		await this.app.vault.modify(activeFile, editor.getValue());
 	}
 
 	async addTagsToNote(newTags: string[]): Promise<void> {
@@ -67,12 +77,14 @@ export class NoteWriter {
 		const activeFile = this.app.workspace.getActiveFile();
 		const editor = this.getEditor();
 
+		console.log("ACTIVE FILE IN APPEND: ", activeFile?.basename);
 		if (!activeFile || !editor) {
 			throw new Error("Please open a note first");
 		}
 
 		const content = editor.getValue();
 		const isEmpty = content.trim().length === 0;
+		console.log("IS EMPTY: ", isEmpty);
 
 		if (isEmpty) {
 			// File is empty, insert at position 0
@@ -96,11 +108,22 @@ export class NoteWriter {
 			return null;
 		}
 
+		const activeFile = this.app.workspace.getActiveFile();
+
+		if (!activeFile) {
+			return null;
+		}
+
 		const leaves = this.app.workspace.getLeavesOfType("markdown");
 
 		for (const leaf of leaves) {
 			const view = leaf.view;
-			if (view instanceof MarkdownView) {
+
+			// Make sure we return the leaf that is the active file.
+			// Previously we didn't include the view.file === activeFile check, which resulted in text
+			// being appended to the first active leaf found, which was usually a previously open note in an earlier tab.
+			//
+			if (view instanceof MarkdownView && view.file === activeFile) {
 				// Switch to edit mode if in read mode
 				if (view.getState().mode === "preview") {
 					void view.setState({ mode: "source" }, { history: false });

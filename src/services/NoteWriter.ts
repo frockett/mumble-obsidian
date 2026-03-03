@@ -1,4 +1,4 @@
-import { App, Editor, MarkdownView } from "obsidian";
+import { App, Editor, MarkdownView, TFile } from "obsidian";
 
 export class NoteWriter {
 	constructor(private app: App) {}
@@ -44,6 +44,31 @@ export class NoteWriter {
 		await this.app.vault.modify(activeFile, editor.getValue());
 	}
 
+	async addDateToNote(): Promise<void> {
+		const activeFile = this.app.workspace.getActiveFile();
+
+		if (!activeFile) {
+			return;
+		}
+
+		await this.app.fileManager.processFrontMatter(
+			activeFile,
+			(frontmatter) => {
+				// Only add date if not already present
+				if (!frontmatter.date) {
+					// Format as YYYY-MM-DD (ISO format, works well with Obsidian and Dataview)
+					const now = new Date();
+					const year = now.getFullYear();
+					const month = String(now.getMonth() + 1).padStart(2, "0");
+					const day = String(now.getDate()).padStart(2, "0");
+					frontmatter.date = `${year}-${month}-${day}`;
+				}
+
+				return frontmatter;
+			},
+		);
+	}
+
 	async addTagsToNote(newTags: string[]): Promise<void> {
 		const activeFile = this.app.workspace.getActiveFile();
 
@@ -73,18 +98,48 @@ export class NoteWriter {
 		);
 	}
 
+	async updateTitle(desiredTitle: string) {
+		const activeFile = this.app.workspace.getActiveFile();
+
+		if (desiredTitle) {
+			if (activeFile && /^Untitled( \d+)?$/.test(activeFile.basename)) {
+				// Sanitize title for filename (remove invalid characters)
+				const sanitizedTitle = desiredTitle
+					.replace(/[<>:"/\\|?*]/g, "") // Remove invalid filename characters
+					.replace(/\s+/g, " ") // Collapse multiple spaces
+					.trim();
+
+				if (sanitizedTitle) {
+					try {
+						const parentPath = activeFile.parent?.path || "";
+						// Construct the full new path
+						const newPath = parentPath
+							? `${parentPath}/${sanitizedTitle}.md`
+							: `${sanitizedTitle}.md`;
+
+						await this.app.fileManager.renameFile(
+							activeFile,
+							newPath,
+						);
+						console.log("Renamed file to:", newPath);
+					} catch (error) {
+						console.error("Failed to rename file:", error);
+					}
+				}
+			}
+		}
+	}
+
 	async append(text: string): Promise<void> {
 		const activeFile = this.app.workspace.getActiveFile();
 		const editor = this.getEditor();
 
-		console.log("ACTIVE FILE IN APPEND: ", activeFile?.basename);
 		if (!activeFile || !editor) {
 			throw new Error("Please open a note first");
 		}
 
 		const content = editor.getValue();
 		const isEmpty = content.trim().length === 0;
-		console.log("IS EMPTY: ", isEmpty);
 
 		if (isEmpty) {
 			// File is empty, insert at position 0

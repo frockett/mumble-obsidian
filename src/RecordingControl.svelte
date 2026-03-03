@@ -92,12 +92,14 @@
 		await manager?.stop();
 		let transcript;
 		let tags;
+		let title;
 		if (settings.enableLLMPostProcessing) {
 			const formattedResponse: FormattedTranscriptResponse =
 				await manager?.getFormattedTranscript(
 					settings.includeKeywordLinks,
 				);
 
+			title = formattedResponse.title;
 			transcript = formattedResponse.transcript;
 			tags = formattedResponse.tags;
 
@@ -121,6 +123,14 @@
 		if (tags) {
 			await noteWriter?.addTagsToNote(tags);
 		}
+
+		await noteWriter?.addDateToNote();
+
+		if (title) {
+			await noteWriter?.updateTitle(title);
+		}
+
+		currentTranscript = "";
 	}
 </script>
 

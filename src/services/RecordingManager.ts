@@ -28,6 +28,7 @@ export interface RecordingCallbacks {
 export interface FormattedTranscriptResponse {
 	transcript: string;
 	tags: string[];
+	title?: string;
 }
 
 // Used to parse the json response from the LLM API
@@ -35,6 +36,7 @@ interface LLMFormattedResponse {
 	markdown: string;
 	keywords: string[];
 	tags: string[];
+	title?: string;
 }
 
 function escapeRegex(str: string): string {
@@ -158,7 +160,11 @@ export class RecordingManager {
 				this.state = "idle";
 				this.callbacks.onStateChange?.("idle");
 
-				return { transcript: mdToWrite, tags: processed.tags };
+				return {
+					transcript: mdToWrite,
+					tags: processed.tags,
+					title: processed.title,
+				};
 			} catch (error) {
 				console.error(
 					"LLM formatting failed, using raw transcript:",
@@ -275,7 +281,9 @@ export class RecordingManager {
 
 						Return up to 8 specific, contextual keywords that would help find relevant notes. Focus on: topics, people, places, concepts, specific items, techniques, or themes. Avoid generic words like "made", "the", "improve", or "research". Instead, return meaningful single words or short phrases that relate closely to the topic of the transcript.
 
-						Additionally, return a list of up to 3 conceptual tags related to the topic. Tags should be short, preferably one word each. Tags should be specific to the overall topic of the transcript.`,
+						Additionally, return a list of up to 3 conceptual tags related to the topic. Tags should be short, preferably one word each. Tags should be specific to the overall topic of the transcript.
+
+						Create a short, descriptive title (2-4 words) that captures the core topic of the note.`,
 					},
 					{
 						role: "user",
@@ -313,6 +321,11 @@ export class RecordingManager {
 									},
 									description:
 										"Categorical tags for frontmatter (max 3). If longer than a single word, use kebab-case.",
+								},
+								title: {
+									type: "string",
+									description:
+										"A short, descriptive title (2-4 words) that would make a good filename. The following characters are not permitted in file names: \\ / :",
 								},
 							},
 							required: ["markdown", "keywords", "tags"],
